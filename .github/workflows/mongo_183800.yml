@@ -1,49 +1,42 @@
-name: Mongo 183800
+name: Cargar JSONs a MongoDB - AR&AP 183800
 
 on:
+  push:
+    branches:
+      - development
+      - feature/183800
   workflow_dispatch:
 
 jobs:
-  ci:
-    uses: ./.github/workflows/ci.yml
-
-  cargar-eventos:
-    needs: ci
+  cargar-mongo:
     runs-on: ubuntu-latest
+
     services:
-      mongo:
-        image: mongo:7
+      mongodb:
+        image: mongo:7.0
         ports:
           - 27017:27017
+        options: >-
+          --health-cmd="mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
     steps:
-      - name: Descargar el repositorio
+      - name: Checkout del código
         uses: actions/checkout@v4
 
-      - name: Configurar Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Instalar pymongo
-        run: pip install pymongo
-
-      - name: Cargar eventos de AR&AP en MongoDB
+      - name: Instalar Mongo Tools
         run: |
-          python - <<'EOF'
-          import json, glob
-          from pymongo import MongoClient
+          wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.9.4.deb
+          sudo dpkg -i mongodb-database-tools-*.deb
 
-          cliente = MongoClient("mongodb://localhost:27017")
-          coleccion = cliente["erp"]["AR&AP"]
-
-          for ruta in glob.glob("AR&AP/**/*.json", recursive=True):
-              with open(ruta, encoding="utf-8") as f:
-                  datos = json.load(f)
-              if isinstance(datos, dict):
-                  datos = [datos]
-              if datos:
-                  coleccion.insert_many(datos)
-              print(ruta, "->", len(datos), "documentos")
-
-          print("Total en AR&AP:", coleccion.count_documents({}))
-          EOF
+      - name: Importar JSONs a colección ARAP
+        run: |
+          echo "Buscando archivos JSON en la carpeta AR&AP..."
+          for filepath in "AR&AP"/*.json; do
+            if [ -f "$filepath" ]; then
+              echo "Cargando archivo: $filepath"
+              mongoimport --host 127.0.0.1 --port 27017 --db erpdb --collection ARAP --file "$filepath" --jsonArray
+            fi
+          done
