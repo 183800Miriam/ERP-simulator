@@ -34,7 +34,7 @@ jobs:
       - name: Instalar pymongo
         run: pip install pymongo
 
-      - name: Cargar eventos a la colección ARAP
+      - name: Cargar eventos a la colección AR&AP
         run: |
           python - <<'EOF'
           import json
@@ -50,7 +50,7 @@ jobs:
               e["timezone"] = datos.get("timezone")
 
           cliente = MongoClient("mongodb://127.0.0.1:27017")
-          coleccion = cliente["erpdb"]["ARAP"]
+          coleccion = cliente["erpdb"]["AR&AP"]
           coleccion.delete_many({})
           coleccion.insert_many(eventos)
 
