@@ -1,0 +1,49 @@
+name: Mongo 183800
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  cargar-eventos:
+    needs: ci
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar pymongo
+        run: pip install pymongo
+
+      - name: Cargar eventos de AR&AP en MongoDB
+        run: |
+          python - <<'EOF'
+          import json, glob
+          from pymongo import MongoClient
+
+          cliente = MongoClient("mongodb://localhost:27017")
+          coleccion = cliente["erp"]["AR&AP"]
+
+          for ruta in glob.glob("AR&AP/**/*.json", recursive=True):
+              with open(ruta, encoding="utf-8") as f:
+                  datos = json.load(f)
+              if isinstance(datos, dict):
+                  datos = [datos]
+              if datos:
+                  coleccion.insert_many(datos)
+              print(ruta, "->", len(datos), "documentos")
+
+          print("Total en AR&AP:", coleccion.count_documents({}))
+          EOF
