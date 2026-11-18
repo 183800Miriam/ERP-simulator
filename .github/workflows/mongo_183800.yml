@@ -1,4 +1,4 @@
-name: Cargar JSONs a MongoDB - AR&AP 183800
+name: Cargar JSON en MongoDB - AR&AP 183800
 
 on:
   push:
@@ -26,17 +26,35 @@ jobs:
       - name: Checkout del código
         uses: actions/checkout@v4
 
-      - name: Instalar Mongo Tools
-        run: |
-          wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.9.4.deb
-          sudo dpkg -i mongodb-database-tools-*.deb
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-      - name: Importar JSONs a colección ARAP
+      - name: Instalar pymongo
+        run: pip install pymongo
+
+      - name: Cargar eventos a la colección ARAP
         run: |
-          echo "Buscando archivos JSON en la carpeta AR&AP..."
-          for filepath in "AR&AP"/*.json; do
-            if [ -f "$filepath" ]; then
-              echo "Cargando archivo: $filepath"
-              mongoimport --host 127.0.0.1 --port 27017 --db erpdb --collection ARAP --file "$filepath" --jsonArray
-            fi
-          done
+          python - <<'EOF'
+          import json
+          from pymongo import MongoClient
+
+          archivo = "AR&AP/Eventos AR&AP ISA95.json"
+          with open(archivo, encoding="utf-8") as f:
+              datos = json.load(f)
+
+          eventos = datos["events"]
+          for e in eventos:
+              e["source"] = datos.get("source")
+              e["timezone"] = datos.get("timezone")
+
+          cliente = MongoClient("mongodb://127.0.0.1:27017")
+          coleccion = cliente["erpdb"]["ARAP"]
+          coleccion.delete_many({})
+          coleccion.insert_many(eventos)
+
+          print("Eventos cargados:", coleccion.count_documents({}))
+          for doc in coleccion.find({}, {"_id": 0, "eventId": 1, "eventType": 1}):
+              print(doc)
+          EOF
